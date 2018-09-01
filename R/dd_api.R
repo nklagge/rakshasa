@@ -22,14 +22,18 @@ clean_data <- function(x) {
 add_listcol <- function(x, colname) {
   listcol <- mdata %>%
     map(colname) %>%
-    map(bind_rows)
+    map(bind_rows) %>%
+    unname()
   mutate(x, !! colname := listcol)
+}
+has_feature <- function(tbl, nm) {
+  nm %in% tbl$name
 }
 
 mlist <- "http://dnd5eapi.co/api/monsters" %>%
   GET() %>%
   content(as = "parsed") %>%
-  roomba("name", "url") 
+  roomba(c("name", "url")) 
 
 mdata <- mlist %>%
   select(url) %>%
@@ -38,24 +42,11 @@ mdata <- mlist %>%
   map(content, as = "parsed") 
 
 df <- mdata %>%
-  roomba(c("index", "size", "type", "subtype", "alignment", "armor_class", 
-           "hit_points", "hit_dice", "speed", "strength", "dexterity", 
-           "constitution", "intelligence", "wisdom", "charisma", 
-           "strength_save", "dexterity_save", "constitution_save", 
-           "intelligence_save", "wisdom_save", "charisma_save", "perception", 
-           "history", "insight", "stealth", "survival", "athletics", 
-           "deception", "persuasion", "arcana", "investigation", "religion",
-           "intimidation", "performance", "medicine", "acrobatics", "nature",
-           "damage_vulnerabilities", "damage_resistances", "damage_immunities", 
-           "condition_immunities", "senses", "languages", "challenge_rating", 
-           "url"),
-         keep = any) %>%
-  inner_join(mlist, by = "url") %>%
-  select(name, 1:(ncol(.)-1)) %>%
+  map(~keep(.x, ~!is.list(.x))) %>%
+  bind_rows() %>%
   clean_data() %>%
-  add_listcol("actions") %>%
   add_listcol("special_abilities") %>%
-  add_listcol("legendary_actions")
+  mutate(amphibious = map_lgl(special_abilities, has_feature, "Amphibious"))
 
 qplot(challenge_rating, hit_points, data=df, geom=c("point", "smooth"),
       method="loess", formula=y~x,
