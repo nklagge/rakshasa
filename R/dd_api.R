@@ -3,6 +3,8 @@ library(ggplot2)
 library(httr)
 library(magrittr)
 library(purrr)
+library(stringr)
+library(tidyr)
  
 # utility functions
 na_to_zero <- function(x) {
@@ -52,17 +54,43 @@ df <- mdata %>%
 df_specab <- mdata %>%
   modify_depth(1, "special_abilities") %>%
   map(bind_rows) %>%
-  bind_rows(.id = "mname")
+  bind_rows(.id = "mname") %>%
+  unique()
 
 df_action <- mdata %>%
   modify_depth(1, "actions") %>%
   map(bind_rows) %>%
-  bind_rows(.id = "mname")
+  bind_rows(.id = "mname") %>%
+  unique()
 
 df_legend <- mdata %>%
   modify_depth(1, "legendary_actions") %>%
   map(bind_rows) %>%
-  bind_rows(.id = "mname")
+  bind_rows(.id = "mname") %>%
+  unique()
+
+df_react <- mdata %>%
+  modify_depth(1, "reactions") %>%
+  map(bind_rows) %>%
+  bind_rows(.id = "mname") %>%
+  unique()
+
+# transform special abilities into set of binary variables
+x <- df_specab %>% 
+  select(mname, name) %>%
+  mutate(new = 1, name = tolower(str_replace_all(name, "\\(.*|[\\s:]", ""))) %>% 
+  spread(name, new, fill = 0) 
+
+# classify actions by type based on string text
+k <- df_action %>% 
+  mutate(melee  = str_detect(desc, "Melee Weapon Attack") | 
+                  startsWith(desc, "Weapon Attack"),
+         ranged = str_detect(desc, "Ranged Weapon Attack"),
+         multi  = str_detect(name, "Multiattack"),
+         smelee = str_detect(desc, "Melee Spell Attack"),
+         sranged = str_detect(desc, "Ranged Spell Attack"))
+# others: breath weapons, frightful presence, lair actions, whirlwind, change shape,
+# roar, teleport
 
 #  mutate(aggressive = map_lgl(special_abilities, has_feature, "Aggressive"),
 #         ambusher = map_lgl(special_abilities, has_feature, "Ambusher"),
